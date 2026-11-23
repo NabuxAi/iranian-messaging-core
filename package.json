@@ -1,0 +1,26 @@
+{
+  "name": "@nabuxai/iranian-messaging-core",
+  "version": "0.1.0",
+  "description": "Shared core for the NabuxAI MCP servers for Iranian messengers: safety locks, bot API helpers, web-app session and the MCP server factory.",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./web/session": "./src/web/session.mjs"
+  },
+  "files": ["src", "README.md", "LICENSE", "SECURITY.md"],
+  "engines": { "node": ">=20" },
+  "scripts": { "test": "node --test tests/*.test.mjs" },
+  "keywords": ["mcp", "model-context-protocol", "iran", "eitaa", "rubika", "bale", "soroush", "gap", "messenger"],
+  "license": "MIT",
+  "author": "NabuxAI",
+  "repository": { "type": "git", "url": "git+https://github.com/NabuxAi/iranian-messaging-core.git" },
+  "homepage": "https://github.com/NabuxAi/iranian-messaging-core#readme",
+  "bugs": { "url": "https://github.com/NabuxAi/iranian-messaging-core/issues" },
+  "publishConfig": { "access": "public" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "playwright-core": "^1.55.0",
+    "zod": "^3.25.76"
+  }
+}
