@@ -41,6 +41,14 @@ export function checkToken(token) {
 
 export const iso = ts => (ts ? new Date(ts * 1000).toISOString() : null);
 
+// The owner's own name for an account. Empty clears it (the bot's name shows again).
+export const MAX_LABEL = 80;
+export function cleanLabel(value) {
+  const label = String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (label.length > MAX_LABEL) throw new AccountError('LABEL_TOO_LONG');
+  return label;
+}
+
 export function createAccounts({ store, keys, fetcher, messengers, maxPerOwner = 50 }) {
   const messenger = id => {
     const m = messengerById(messengers, id);
@@ -56,7 +64,7 @@ export function createAccounts({ store, keys, fetcher, messengers, maxPerOwner =
 
   function label(account) {
     const m = messengerById(messengers, account.messenger);
-    return account.default_chat_title || (account.username ? `@${account.username}` : null) || account.bot_name ||
+    return account.custom_label || account.default_chat_title || (account.username ? `@${account.username}` : null) || account.bot_name ||
       `${m ? m.label : account.messenger} bot`;
   }
 
@@ -67,6 +75,7 @@ export function createAccounts({ store, keys, fetcher, messengers, maxPerOwner =
       messenger: account.messenger,
       messenger_label: m ? m.label : account.messenger,
       label: label(account),
+      custom_label: account.custom_label || null,
       kind: account.kind,
       mode: account.mode,
       status: account.status,
@@ -146,9 +155,10 @@ export function createAccounts({ store, keys, fetcher, messengers, maxPerOwner =
       };
     },
 
-    async updateSettings(account, { defaultChat, allowedChats, sendEnabled }) {
+    async updateSettings(account, { defaultChat, allowedChats, sendEnabled, label: newLabel }) {
       const m = messenger(account.messenger);
       const changes = {};
+      if (newLabel !== undefined) changes.custom_label = cleanLabel(newLabel);
       if (allowedChats !== undefined) changes.allowed_chats = parseChats(allowedChats);
       if (sendEnabled !== undefined) changes.send_enabled = sendEnabled === true;
       if (defaultChat !== undefined) {

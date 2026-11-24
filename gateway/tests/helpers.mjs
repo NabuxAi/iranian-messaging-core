@@ -10,6 +10,16 @@ export const INTERNAL = 'internal-token-for-tests';
 
 // Every messenger API answers getMe/sendMessage/sendPhoto/getChat the
 // Telegram way (Bale, Soroush Plus), or in its own envelope.
+// Pending updates of the Telegram-like bots, oldest first, as getUpdates returns them.
+export const FAKE_UPDATES = [
+  { update_id: 100, message: { message_id: 1, date: 1767225600, chat: { id: 555, type: 'private', first_name: 'Sara' },
+    from: { id: 555, first_name: 'Sara' }, text: 'سلام، قیمت چند است؟' } },
+  { update_id: 101, channel_post: { message_id: 9, date: 1767225660, chat: { id: -100, type: 'channel', title: 'کانال نابکس' },
+    text: 'پست کانال' } },
+  { update_id: 102, message: { message_id: 2, date: 1767225720, chat: { id: 555, type: 'private', first_name: 'Sara' },
+    from: { id: 555, first_name: 'Sara' }, text: 'ممنون' } }
+];
+
 export function fakeMessengers({ rejectTokens = [] } = {}) {
   const calls = [];
   const apiFetch = async (url, init = {}) => {
@@ -33,6 +43,7 @@ export function fakeMessengers({ rejectTokens = [] } = {}) {
     }
     if (method === 'getMe') return reply(200, { ok: true, result: { id: 42, username: 'nabu_test_bot', first_name: 'Nabu <b>Bot</b>' } });
     if (method === 'getChat') return reply(200, { ok: true, result: { id: -100, type: 'channel', title: 'کانال نابکس', username: 'nabuxchan' } });
+    if (method === 'getUpdates') return reply(200, { ok: true, result: FAKE_UPDATES.slice(0, body?.limit || 100) });
     if (method === 'sendMessage') return reply(200, { ok: true, result: { message_id: 7 } });
     if (method === 'sendPhoto' || method === 'sendVideo' || method === 'sendDocument') return reply(200, { ok: true, result: { message_id: 8 } });
     return reply(200, { ok: true, result: true });
