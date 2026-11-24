@@ -51,6 +51,30 @@ Publishing always goes to the account's default chat. Media URLs are downloaded 
 
 Connect from Social (the v1 connect contract): `GET /internal/v1/connect/methods[?messenger=bale]` lists one `bot_token` method per messenger (`messenger` field, `key` `bale.bot_token`, fields `token` + `default_chat_id`, mode `official`). `POST /internal/v1/connect/start` with `{"owner":{sub,email,email_verified,name},"method":"bot_token","messenger":"bale","fields":{…}}` (or `"method":"bale.bot_token"`) answers `{"status":"done","account":{…}}` or `{"status":"error","error":{"fa","en"},"code":"BOT_TOKEN_REJECTED","retry":true}` at once; bot tokens need no further steps, so `/connect/{session}` answers 404.
 
+Manage from Social (the v1 manage contract), so people never need this gateway's own panel. Every route is
+owner-scoped like discovery: the account must belong to the owner of that NabuAuth `sub` (or of the verified email
+Social sends), otherwise `404 {"detail":"account_not_found"}`. GETs take `?sub=&email=`, POSTs `{"owner":{"sub","email"}}`.
+
+```http
+GET   /internal/v1/manage                                → {"ok":true,"version":1,"routes":{"settings":true,"remove":true,"send":true,"updates":true},"send_kinds":[…]}
+GET   /internal/v1/accounts/{account_key}/settings?sub=   → {"ok":true,"account":{…summary, "custom_label","allowed_chats","send_enabled","default_chat_title",
+                                                             "messenger_label":{"fa","en"},"chat_hint":{"fa","en"},"can":{"send_text","send_file","read_updates"},"send_kinds":[…]}}
+POST  /internal/v1/accounts/{account_key}/settings       {"owner","label"?,"default_chat"?,"allowed_chats"?: […] | "a\nb","send_enabled"?: true|false}   (PATCH too)
+POST  /internal/v1/accounts/{account_key}/remove         {"owner"}                       (DELETE /internal/v1/accounts/{account_key}?sub= too)
+POST  /internal/v1/accounts/{account_key}/send           {"owner","chat_id"?,"kind":"text|photo|video|audio|voice|document","text"|"file_url","caption"?,"confirm":true}
+→ 200 {"ok":true,"messenger":"bale","kind":"text","chat_id":"…","message_id":"7"}
+→ 400 {"detail":"EXPLICIT_CONFIRMATION_REQUIRED","error":{"fa","en"},"preview":{"approvedRecipient","sendEnabled","willSend"}}
+→ 400 {"detail":"RECIPIENT_NOT_ALLOWLISTED_…|SEND_DISABLED_BY_DEFAULT_…|CHAT_ID_REQUIRED|INVALID_MESSAGE|…","error":{"fa","en"}}
+GET   /internal/v1/accounts/{account_key}/updates?sub=&limit=20
+→ {"ok":true,"supported":true,"updates":[{"chat_id","chat_title","from","text","date","kind","message_id"}],"chats":[{"chat_id","title","allowed","is_default"}]}
+→ {"ok":true,"supported":false,"updates":[],"chats":[]}       (Eitaa and Gap bots cannot read)
+```
+
+Sending keeps the same three locks as the MCP tools (`confirm` must be the boolean `true`, the chat on the account's
+allowed chats, sending switched on); `chat_id` defaults to the default chat. Reading updates never sends an offset, so
+the messenger keeps every update pending and nothing is marked delivered; the newest come first. Message bodies, chat
+ids, file URLs and tokens never reach the log. Discovery and `GET /accounts/{key}` carry `"manage": true`.
+
 ## Environment
 
 | Variable | Default | |
