@@ -1,0 +1,60 @@
+# Coolify: build pack "Docker Compose", base directory /gateway, compose file
+# /docker-compose.coolify.yml (the build context is the repository root, "..").
+# Domain for the service iran-gateway: https://ir.nabuxai.com (port 8000).
+# Run ONE replica: the state is a single JSON file on the /data volume.
+services:
+  iran-gateway:
+    build:
+      context: ..
+      dockerfile: gateway/Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      APP_NAME: ${APP_NAME:-Iran Messengers MCP}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://ir.nabuxai.com}
+      HOST: 0.0.0.0
+      PORT: 8000
+      DATA_DIR: /data
+      # Required: a long random secret (openssl rand -hex 32). It seals the bot
+      # tokens at rest: changing it makes every stored bot unreadable.
+      APP_SECRET_KEY: ${APP_SECRET_KEY}
+      # Shared with Social MCP as SOCIAL_IRAN_TOKEN. Unset = internal API answers 404.
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
+      PROVIDER_ID: ${PROVIDER_ID:-iran}
+      CONNECT_RETURN_ORIGINS: ${CONNECT_RETURN_ORIGINS:-https://social.nabuxai.com}
+      # Sign in with Nabux (client iran-mcp on NabuAuth).
+      NABUAUTH_URL: ${NABUAUTH_URL:-https://auth.nabuxai.com}
+      NABUAUTH_CLIENT_ID: ${NABUAUTH_CLIENT_ID:-iran-mcp}
+      NABUAUTH_CLIENT_SECRET: ${NABUAUTH_CLIENT_SECRET:-}
+      NABUAUTH_REDIRECT_URI: ${NABUAUTH_REDIRECT_URI:-https://ir.nabuxai.com/auth/nabu/callback}
+      NABUAUTH_SCOPES: ${NABUAUTH_SCOPES:-openid profile email}
+      # Which messengers are offered.
+      MESSENGERS: ${MESSENGERS:-bale,eitaa,rubika,soroushplus,gap}
+      # OAuth / session lifetimes (seconds).
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-3600}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-7776000}
+      AUTH_CODE_TTL: ${AUTH_CODE_TTL:-300}
+      SESSION_TTL: ${SESSION_TTL:-2592000}
+      # Media fetched for image/video publishing and send_file.
+      MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-52428800}
+      MEDIA_TIMEOUT_MS: ${MEDIA_TIMEOUT_MS:-30000}
+      MAX_ACCOUNTS_PER_OWNER: ${MAX_ACCOUNTS_PER_OWNER:-50}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      # Messenger API timeout and optional API base overrides (defaults are the official hosts).
+      NABU_MESSAGING_TIMEOUT_MS: ${NABU_MESSAGING_TIMEOUT_MS:-15000}
+      BALE_API_BASE: ${BALE_API_BASE:-https://tapi.bale.ai}
+      EITAA_API_BASE: ${EITAA_API_BASE:-https://eitaayar.ir/api}
+      RUBIKA_API_BASE: ${RUBIKA_API_BASE:-https://botapi.rubika.ir/v3}
+      SOROUSHPLUS_API_BASE: ${SOROUSHPLUS_API_BASE:-https://api.splus.ir}
+      GAP_API_BASE: ${GAP_API_BASE:-https://api.gap.im}
+    volumes:
+      - iran-gateway-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+volumes:
+  iran-gateway-data:
