@@ -92,3 +92,21 @@ test('the server registers prefixed tools only for what the driver and bot suppo
   assert.equal(res.isError, true);
   await client.close();
 });
+
+test('a hosted account passes its own token, allowlist and switch instead of the environment', async () => {
+  process.env.DEMO_BOT_TOKEN = 'env-token-should-not-be-used';
+  process.env.DEMO_ALLOWED_CHAT_IDS = '*';
+  process.env.NABU_MESSAGING_ENABLE_SEND = '1';
+  const { fetcher, calls } = fakeFetch({ ok: true, result: { message_id: 9 } });
+  const settings = { token: 'account-token-123456', allowedChats: ['@chan'], sendEnabled: false };
+  const ops = createBotOps(bot, fetcher, settings);
+  await assert.rejects(ops.sendMessage({ chatId: '1', text: 'x', confirm: true }), /RECIPIENT_NOT_ALLOWLISTED_ADD_IT_TO_THE_ACCOUNT_ALLOWED_CHATS/);
+  await assert.rejects(ops.sendMessage({ chatId: '@chan', text: 'x', confirm: true }), /SEND_DISABLED_BY_DEFAULT_TURN_ON_SENDING_FOR_THE_ACCOUNT/);
+  await assert.rejects(ops.sendFile({ chatId: '@chan', filePath: 'a.txt', confirm: true }), /LOCAL_FILES_NOT_AVAILABLE/);
+  settings.sendEnabled = true;
+  const out = await ops.sendMessage({ chatId: '@chan', text: 'x', confirm: true });
+  assert.equal(out.messageId, '9');
+  assert.ok(calls[0].url.includes('/botaccount-token-123456/'));
+  assert.equal(ops.preview({ chatId: '@chan', text: 'x' }).willSend, true);
+  assert.equal(ops.info().allowlistEnv, null);
+});

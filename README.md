@@ -31,6 +31,10 @@ There is no bulk sending: one chat per call and at most 5 members added per call
 
 A web driver is an object with `id`, `label`, `url`, `host`, `loginState(page)`, `loginStart(page, digits)`, `listChats`, `readChat`, `sendText`, `sendFile`, and any of the optional operations in `OPTIONAL_OPS` (`editText`, `deleteMessages`, `forwardMessages`, `pinMessage`, `markRead`, `sendLocation`, `sendContact`, `sendPoll`, `getChatInfo`, `getMembers`, `searchMessages`, `downloadMedia`, `getUnread`, `getContacts`, `createChat`, `updateChat`, `getInviteLink`, `joinChat`, `leaveChat`, `addMembers`, `removeMember`, `setAdmin`). Each receives the Playwright `page` and validated arguments; the locks have already been applied.
 
+## Hosted gateway
+
+[`gateway/`](gateway/README.md) runs all five messengers as one hosted, multi-tenant service (`https://ir.nabuxai.com/mcp`): Sign in with Nabux, each person's own bots with the same locks per account, MCP over Streamable HTTP with OAuth, and the internal API Nabux Social uses to link and publish to these bots. Bot mode only for now. `createBotOps(adapter, fetcher, settings)` takes one account's `{ token, allowedChats, sendEnabled }` for this instead of the environment.
+
 ## License
 
 MIT © NabuxAI. Not affiliated with or endorsed by any of the messengers above.
