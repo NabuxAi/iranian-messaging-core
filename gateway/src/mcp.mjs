@@ -44,12 +44,12 @@ export function buildMcpServer({ ownerId, store, accounts, messengers, version, 
     });
 
   tool('iran_accounts', 'Iranian messengers: accounts',
-    'Your connected Iranian messenger bots (Bale, Eitaa, Rubika, Soroush Plus, Gap): account key, messenger, bot, default chat, the chats it may write to and whether sending is on. Bots are added and their write permissions set only in the panel.',
+    'Your connected Iranian messenger accounts (Bale, Eitaa, Rubika, Soroush Plus, Gap): account key, messenger, bot, default chat, the chats it may write to and whether sending is on. Bots are added and their write permissions set only in the panel.',
     {}, { ...READ, openWorldHint: false },
     () => ({ accounts: owned().map(a => accounts.view(a)), panel: panelUrl,
       note: 'Writing needs confirm: true, the chat on the account\'s allowed chats and sending turned on for the account; change those in the panel.' }));
 
-  const present = new Set(owned().map(a => a.messenger));
+  const present = new Set(owned().filter(a => a.mode !== 'web').map(a => a.messenger));
   for (const m of messengers) {
     if (!present.has(m.id)) continue;
     const id = m.id;
@@ -59,7 +59,7 @@ export function buildMcpServer({ ownerId, store, accounts, messengers, version, 
     const chatId = z.string().min(1).max(128).describe(`${m.label} chat, group or channel id for the bot.`);
     const chatOrDefault = chatId.optional().describe(`${m.label} chat id. Optional: the account's default chat when left out.`);
     const messageId = z.string().min(1).max(64).describe('Id of a message this bot sent.');
-    const pick = args => resolveAccount(owned(), id, args.account);
+    const pick = args => resolveAccount(owned().filter(a=>a.mode!=='web'), id, args.account);
     const target = (a, args) => {
       const chat = args.chatId || a.default_chat;
       if (!chat) throw new Error('CHAT_ID_REQUIRED_NO_DEFAULT_CHAT_SET');
@@ -104,6 +104,19 @@ export function buildMcpServer({ ownerId, store, accounts, messengers, version, 
         { account, chatId: chatOrDefault, messageId, confirm }, { ...WRITE, destructiveHint: true, idempotentHint: true },
         args => { const a = pick(args); return accounts.ops(a).deleteMessage({ ...args, chatId: target(a, args) }); });
     }
+  }
+  for(const m of messengers){
+    const web=()=>owned().filter(a=>a.mode==='web');
+    if(!web().some(a=>a.messenger===m.id))continue;
+    const account=z.string().max(80).optional(),chatId=z.string().min(1).max(128);
+    const limit=z.number().int().min(1).max(50).optional();
+    const pick=args=>resolveAccount(web(),m.id,args.account);
+    tool(m.id+'_web_list_chats',m.label+' Web: list chats','List chats through your connected local browser.',
+      {account,limit,query:z.string().max(100).optional()},READ,args=>accounts.ops(pick(args)).listChats(args));
+    tool(m.id+'_web_read_chat',m.label+' Web: read chat','Read one chat using your connected local browser.',
+      {account,chatId,limit},READ,args=>accounts.ops(pick(args)).readChat(args));
+    tool(m.id+'_web_send_message',m.label+' Web: send text','Send one text message. Requires enabled sending, exact recipient permission, explicit approval, and local device confirmation. Never retry automatically after uncertain delivery.',
+      {account,chatId,text:z.string().min(1).max(4000),confirm},WRITE,args=>accounts.ops(pick(args)).sendMessage(args));
   }
   return server;
 }

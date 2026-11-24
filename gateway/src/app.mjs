@@ -5,6 +5,7 @@ import express from 'express';
 import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { createCompanion } from './companion.mjs';
 import { createAccounts } from './accounts.mjs';
 import { createKeys } from './crypto.mjs';
 import { internalRouter } from './internal.mjs';
@@ -27,7 +28,8 @@ export function createApp(config, deps = {}) {
   const messengers = enabledMessengers(config.messengers);
   const safeGet = deps.safeGet || createSafeGet({ maxBytes: config.mediaMaxBytes, timeoutMs: config.mediaTimeoutMs });
   const fetcher = gatewayFetcher({ safeGet, apiFetch: deps.apiFetch || fetch });
-  const accounts = createAccounts({ store, keys, fetcher, messengers, maxPerOwner: config.maxAccountsPerOwner });
+  const companion = createCompanion({ config, store });
+  const accounts = createAccounts({ store, keys, fetcher, messengers, companion, maxPerOwner: config.maxAccountsPerOwner });
   const nabuauth = createNabuAuth(config.nabuauth, deps.authFetch || fetch);
   const secure = config.baseUrl.startsWith('https://');
   const sessions = createSessions({ keys, store, secure, ttl: config.sessionTtl });
@@ -78,7 +80,8 @@ export function createApp(config, deps = {}) {
     res.status(405).set('Allow', 'POST').json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed: this server is stateless; use POST.' }, id: null });
   });
 
-  app.use('/internal/v1', internalRouter({ config, store, accounts, messengers }));
+  app.use('/companion/v1', companion.router);
+  app.use('/internal/v1', internalRouter({ config, store, accounts, messengers, companion }));
   app.use(panelRouter({ config, keys, store, accounts, messengers, sessions, nabuauth, oauth, version: VERSION }));
 
   app.use((_req, res) => res.status(404).type('text/plain').send('not found'));

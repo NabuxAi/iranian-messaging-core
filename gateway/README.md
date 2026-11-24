@@ -103,3 +103,21 @@ APP_SECRET_KEY=$(openssl rand -hex 32) PUBLIC_BASE_URL=http://localhost:8000 DAT
 Docker: `docker build -f gateway/Dockerfile .` from the repository root. Coolify: Docker Compose build pack, base directory `/gateway`, compose file `/docker-compose.coolify.yml`, domain `https://ir.nabuxai.com` on service `iran-gateway` port 8000, on a server in Iran. Run one replica: the state is one JSON file on the `/data` volume. Health: `GET /healthz`.
 
 Logs are one JSON line per event: paths without query strings and with account keys cut to their prefix; never tokens, codes, cookies, sub/email or message bodies.
+
+
+## Local browser companion
+
+Experimental, opt-in (gateway operator sets `IRAN_WEB_COMPANION_ENABLED=1` only after testing). The hosted gateway can link personal accounts from Social MCP; authentication takes place in a separate visible Chrome profile on the user's own computer, never on the hosted server. Chat data requested by authorized clients is relayed over HTTPS. Browser sessions, OTPs and passwords stay local. Unofficial access may cause restrictions; use only your own account.
+
+Requirements: Node.js 20+, Google Chrome, and an account in Social MCP. On your own computer:
+
+```sh
+git clone https://github.com/NabuxAi/iranian-messaging-core.git
+cd iranian-messaging-core/gateway
+npm install
+npm run companion
+````
+
+In Social MCP, choose Iranian messengers, your messenger, then personal account (browser). Accept the risk disclosure. Enter the one-time pairing code in the companion. Sign in within Chrome yourself and approve the link. Keep the terminal and Chrome open. To resume, use the command printed after linking. Disconnect from Social to revoke the dedicated token; sign out in the messenger to end its local browser session.
+
+Initial capabilities: list chats, read one chat via MCP, and send one text message after enabling sends, allowing an exact chat and approving the exact message on the local device. Automated publishing, file sends and bulk sends are not supported for personal accounts. Never automatically retry a send when delivery is uncertain. This feature remains disabled by default until real-provider smoke tests succeed.
