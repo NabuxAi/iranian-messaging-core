@@ -16,6 +16,7 @@ export function loadConfig(env = process.env) {
     host: env.HOST || '0.0.0.0',
     port: int(env.PORT, 8000),
     dataDir,
+    webCompanionEnabled: env.IRAN_WEB_COMPANION_ENABLED === "1",
     dbFile: env.DB_FILE || path.join(dataDir, 'iran-gateway.json'),
     secretKey: env.APP_SECRET_KEY || '',
     internalToken: (env.INTERNAL_SERVICE_TOKEN || '').trim(),

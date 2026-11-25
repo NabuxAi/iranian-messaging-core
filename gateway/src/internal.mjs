@@ -132,7 +132,7 @@ export function connectMethods(messengers) {
   }));
 }
 
-export function internalRouter({ config, store, accounts, messengers }) {
+export function internalRouter({ config, store, accounts, messengers, companion }) {
   const router = express.Router();
   router.use(express.json({ limit: '256kb' }));
 
@@ -148,7 +148,7 @@ export function internalRouter({ config, store, accounts, messengers }) {
     return { account_key: v.account_key, messenger: v.messenger, label: v.label, kind: v.kind, mode: v.mode, status: v.status,
       connected_at: v.connected_at, username: v.username, default_chat: v.default_chat, publish_ready: publishReady(a), manage: true };
   };
-  const publishReady = a => Boolean(a.default_chat && a.send_enabled && (a.allowed_chats.includes('*') || a.allowed_chats.includes(a.default_chat)));
+  const publishReady = a => Boolean(a.mode !== 'web' && a.default_chat && a.send_enabled && (a.allowed_chats.includes('*') || a.allowed_chats.includes(a.default_chat)));
 
   router.get('/owners/accounts', (req, res) => {
     const sub = normSub(req.query.sub);
@@ -173,10 +173,11 @@ export function internalRouter({ config, store, accounts, messengers }) {
     if (!a) return;
     const v = accounts.view(a);
     res.json({ ok: true, provider: config.providerId, account: { ...summary(a), allowed_chats: v.allowed_chats, send_enabled: v.send_enabled,
-      default_chat_title: v.default_chat_title, publish: PUBLISH_KINDS } });
+      default_chat_title: v.default_chat_title, publish: a.mode === 'web' ? [] : PUBLISH_KINDS } });
   });
 
   async function publish(a, { kind = 'text', text = '', mediaUrl = '', title = '', link = '' }) {
+    if (a.mode === 'web') return [400, { detail: 'WEB_SEND_REQUIRES_LIVE_APPROVAL' }];
     if (!PUBLISH_KINDS.includes(kind)) return [400, { detail: 'unsupported_publish_kind', supported: PUBLISH_KINDS }];
     if (!a.default_chat) return [400, { detail: 'DEFAULT_CHAT_NOT_SET_CHOOSE_ONE_IN_THE_PANEL' }];
     const body = [title, text, link && !String(text).includes(link) ? link : ''].map(s => String(s || '').trim()).filter(Boolean).join('\n\n');
@@ -256,9 +257,9 @@ export function internalRouter({ config, store, accounts, messengers }) {
       messenger_label: m ? { fa: m.fa, en: m.label } : { fa: a.messenger, en: a.messenger },
       chat_hint: m ? m.chatHint : null, default_chat_title: v.default_chat_title, allowed_chats: v.allowed_chats,
       send_enabled: v.send_enabled, capabilities: v.capabilities, updated_at: v.updated_at,
-      can: { send_text: m ? can(m, 'send_text') : false, send_file: m ? can(m, 'send_file') : false,
+      can: a.mode === 'web' ? { send_text: true, send_file: false, read_updates: true } : { send_text: m ? can(m, 'send_text') : false, send_file: m ? can(m, 'send_file') : false,
         read_updates: m ? can(m, 'get_updates') : false },
-      send_kinds: m && can(m, 'send_file') ? SEND_KINDS : ['text'] };
+      send_kinds: a.mode !== 'web' && m && can(m, 'send_file') ? SEND_KINDS : ['text'] };
   };
 
   router.get('/accounts/:key/settings', (req, res) => {
@@ -341,6 +342,17 @@ export function internalRouter({ config, store, accounts, messengers }) {
     if (!a) return;
     const m = messengers.find(x => x.id === a.messenger);
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), MAX_UPDATES);
+    if (a.mode === 'web') {
+      if (companion.status(a) !== 'connected') return res.json({ ok: true, supported: false, updates: [], chats: [] });
+      try {
+        const result = await accounts.ops(a).listChats({limit});
+        const chats = (result.chats || []).slice(0,limit).map(c=>{
+          const chat_id = String(c.id ?? c.chatId ?? c.chat_id ?? '');
+          return {chat_id,title:String(c.title||c.name||'').slice(0,200),allowed:a.allowed_chats.includes(chat_id),is_default:a.default_chat===chat_id};
+        }).filter(c=>c.chat_id);
+        return res.json({ok:true,supported:true,updates:[],chats});
+      } catch(err) { return fail(res,err,'manage',{action:'web_chats',messenger:a.messenger}); }
+    }
     if (!m || !can(m, 'get_updates')) {
       return res.json({ ok: true, provider: config.providerId, supported: false, messenger: a.messenger, updates: [], chats: [] });
     }
@@ -368,7 +380,7 @@ export function internalRouter({ config, store, accounts, messengers }) {
     const only = String(req.query.messenger || '');
     const list = only ? messengers.filter(m => m.id === only) : messengers;
     res.json({ ok: true, provider: config.providerId,
-      messengers: messengers.map(m => ({ id: m.id, label: { fa: m.fa, en: m.label } })), methods: connectMethods(list) });
+      messengers: messengers.map(m => ({ id: m.id, label: { fa: m.fa, en: m.label } })), methods: [...connectMethods(list), ...companion.methods(list)] });
   });
 
   router.post('/connect/start', async (req, res) => {
@@ -379,11 +391,12 @@ export function internalRouter({ config, store, accounts, messengers }) {
     let method = String(b.method || '');
     let messenger = String(b.messenger || '');
     if (method.includes('.')) [messenger, method] = method.split('.', 2);
-    if (method !== 'bot_token') return res.status(400).json({ detail: 'unknown_method' });
+    if (!['bot_token','web_companion'].includes(method)) return res.status(400).json({ detail: 'unknown_method' });
     if (!messengers.some(m => m.id === messenger)) return res.status(400).json({ detail: 'unknown_messenger' });
     const owner = store.ensureOwner({ sub, email: normEmail(o.email), emailVerified: o.email_verified === true, name: o.name });
     const f = b.fields || {};
     try {
+      if (method === 'web_companion') return res.json(companion.start(owner,messenger,f));
       const chat = String(f.default_chat_id || f.default_chat || '').trim();
       const { account: a } = await accounts.addBot(owner.id, { messenger, token: f.token, defaultChat: chat, allowSend: Boolean(chat) });
       log('connect', { messenger, ok: true });
@@ -397,9 +410,16 @@ export function internalRouter({ config, store, accounts, messengers }) {
   });
 
   // Bot tokens connect in one step, so there are no open sessions to continue.
-  router.get('/connect/:session', (_req, res) => res.status(404).json({ detail: 'session_not_found' }));
+  router.get('/connect/:session', (req,res)=>{
+    const s=companion.session(req.params.session,normSub(req.query.sub));
+    return s?res.json(companion.pending(s)):res.status(404).json({detail:'session_not_found'});
+  });
   router.post('/connect/:session', (_req, res) => res.status(404).json({ detail: 'session_not_found' }));
-  router.post('/connect/:session/cancel', (_req, res) => res.status(404).json({ detail: 'session_not_found' }));
+  router.post('/connect/:session/cancel',(req,res)=>{
+    const s=companion.session(req.params.session,normSub(req.body?.owner?.sub));
+    if(!s)return res.status(404).json({detail:'session_not_found'});
+    companion.cancel(s);res.json({ok:true});
+  });
 
   router.use((err, _req, res, _next) => {
     if (err?.type === 'entity.parse.failed') return res.status(400).json({ detail: 'invalid_json' });

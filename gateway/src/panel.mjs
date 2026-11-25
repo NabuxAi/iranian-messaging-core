@@ -290,7 +290,7 @@ export function panelRouter({ config, keys, store, accounts, messengers, session
       [ctx.pick('پیام‌رسان', 'Messenger'), html`<span class="nx-cell">${mTile(m, 20)}${mName(ctx, m)}</span>`],
       [ctx.pick('بات', 'Bot'), v.username ? html`<span dir="ltr">@${v.username}</span>` : (v.bot_name || '—')],
       [ctx.pick('وضعیت', 'Status'), html`${statusBadge(ctx, v.status)} ${v.verified ? '' : badge(ctx.pick('بررسی‌نشده', 'Not verifiable'), 'warning')}`],
-      [ctx.pick('حالت', 'Mode'), badge(ctx.pick('بات رسمی', 'Official bot'), 'info', false)],
+      [ctx.pick('حالت', 'Mode'), badge(v.mode === 'web' ? ctx.pick('حساب شخصی مرورگری', 'Personal browser account') : ctx.pick('بات رسمی', 'Official bot'), 'info', false)],
       [ctx.pick('کلید حساب', 'Account key'), html`<span class="nx-cell"><code dir="ltr" class="nx-key">${v.account_key}</code>${copyButton(v.account_key, ctx)}</span>`],
       [ctx.pick('توانایی‌ها', 'Can do'), html`<span dir="ltr">${v.capabilities.join(', ')}</span>`]
     ]), { title: ctx.pick('مشخصات', 'Details'), actions: postForm(`/dashboard/accounts/${a.key}/check`, ctx,
@@ -310,7 +310,7 @@ export function panelRouter({ config, keys, store, accounts, messengers, session
     const danger = dangerZone(ctx, [[ctx.pick('حذف این بات', 'Remove this bot'), ctx.pick('توکن از این سرور پاک می‌شود و Social دیگر به آن منتشر نمی‌کند.', 'The token is erased from this server and Social stops publishing to it.'),
       postForm(`/dashboard/accounts/${a.key}/delete`, ctx, button(ctx.pick('حذف', 'Remove'), null, { variant: 'danger', size: 'sm', iconName: 'trash' }), { confirm: ctx.pick('این بات حذف شود؟', 'Remove this bot?') })]]);
     send(res, ctx, v.label, appPage(ctx, { title: v.label, active: 'accounts', toast: toastOf(ctx, req),
-      subtitle: ctx.pick(`بات ${m.fa}`, `${m.label} bot`), body: html`<div class="nx-grid nx-grid--2">${stack([info, replace])}${stack([settings, danger])}</div>` }));
+      subtitle: v.mode === 'web' ? ctx.pick(`حساب شخصی ${m.fa}`, `${m.label} personal account`) : ctx.pick(`بات ${m.fa}`, `${m.label} bot`), body: html`<div class="nx-grid nx-grid--2">${stack(v.mode === 'web' ? [info] : [info, replace])}${stack([settings, danger])}</div>` }));
   });
 
   router.post('/dashboard/accounts/:key/settings', requireLogin, async (req, res) => {

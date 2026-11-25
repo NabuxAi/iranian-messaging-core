@@ -5,10 +5,13 @@
   "description": "Hosted multi-tenant MCP gateway for the Iranian messengers (Bale, Eitaa, Rubika, Soroush Plus, Gap): Sign in with Nabux, bot accounts per owner, MCP over Streamable HTTP with OAuth, and the internal API for Nabux Social.",
   "type": "module",
   "main": "./src/app.mjs",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/main.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "companion": "node companion/main.mjs"
   },
   "license": "MIT",
   "author": "NabuxAI",
@@ -20,6 +23,7 @@
     "@nabuxai/rubika-mcp": "^0.1.0",
     "@nabuxai/soroushplus-mcp": "^0.1.0",
     "express": "^5.1.0",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@nabuxai/iranian-messaging-core": "^0.1.0"
   }
 }

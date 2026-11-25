@@ -49,7 +49,7 @@ export function cleanLabel(value) {
   return label;
 }
 
-export function createAccounts({ store, keys, fetcher, messengers, maxPerOwner = 50 }) {
+export function createAccounts({ store, keys, fetcher, messengers, companion, maxPerOwner = 50 }) {
   const messenger = id => {
     const m = messengerById(messengers, id);
     if (!m) throw new AccountError('UNKNOWN_MESSENGER');
@@ -65,7 +65,7 @@ export function createAccounts({ store, keys, fetcher, messengers, maxPerOwner =
   function label(account) {
     const m = messengerById(messengers, account.messenger);
     return account.custom_label || account.default_chat_title || (account.username ? `@${account.username}` : null) || account.bot_name ||
-      `${m ? m.label : account.messenger} bot`;
+      `${m ? m.label : account.messenger} ${account.mode === 'web' ? 'Web' : 'bot'}`;
   }
 
   function view(account) {
@@ -78,7 +78,7 @@ export function createAccounts({ store, keys, fetcher, messengers, maxPerOwner =
       custom_label: account.custom_label || null,
       kind: account.kind,
       mode: account.mode,
-      status: account.status,
+      status: account.mode === 'web' ? companion.status(account) : account.status,
       username: account.username || null,
       bot_name: account.bot_name || null,
       verified: account.verified === true,
@@ -86,7 +86,7 @@ export function createAccounts({ store, keys, fetcher, messengers, maxPerOwner =
       default_chat_title: account.default_chat_title || null,
       allowed_chats: [...account.allowed_chats],
       send_enabled: account.send_enabled === true,
-      capabilities: m ? [...m.adapter.capabilities] : [],
+      capabilities: account.mode === 'web' ? ['list_chats','read_chat','send_text'] : m ? [...m.adapter.capabilities] : [],
       connected_at: iso(account.created_at),
       updated_at: iso(account.updated_at)
     };
@@ -132,7 +132,7 @@ export function createAccounts({ store, keys, fetcher, messengers, maxPerOwner =
       const chat = normalizeChat(defaultChat);
       const who = await identify(m, clean);
       const tokenHash = sha256(`${m.id}:${clean}`);
-      const mine = store.accountsOf(ownerId).filter(a => a.messenger === m.id);
+      const mine = store.accountsOf(ownerId).filter(a => a.messenger === m.id && a.mode !== 'web');
       const existing = mine.find(a => (who.botId && a.bot_id === who.botId) || a.token_hash === tokenHash);
       if (!existing && store.accountsOf(ownerId).length >= maxPerOwner) throw new AccountError('TOO_MANY_ACCOUNTS');
       const allowed = existing ? [...existing.allowed_chats] : [];
@@ -160,17 +160,19 @@ export function createAccounts({ store, keys, fetcher, messengers, maxPerOwner =
       const changes = {};
       if (newLabel !== undefined) changes.custom_label = cleanLabel(newLabel);
       if (allowedChats !== undefined) changes.allowed_chats = parseChats(allowedChats);
+      if (account.mode === 'web' && (changes.allowed_chats || account.allowed_chats).includes('*')) throw new AccountError('WEB_WILDCARD_NOT_ALLOWED');
       if (sendEnabled !== undefined) changes.send_enabled = sendEnabled === true;
       if (defaultChat !== undefined) {
         const chat = normalizeChat(defaultChat);
         changes.default_chat = chat;
-        changes.default_chat_title = chat ? await chatTitle(m, settingsOf(account), chat) : null;
+        changes.default_chat_title = chat && account.mode !== 'web' ? await chatTitle(m, settingsOf(account), chat) : null;
       }
       return store.updateAccount(account.key, changes);
     },
 
     // Asks the messenger whether the token still works.
     async check(account) {
+      if (account.mode === 'web') return account;
       const m = messenger(account.messenger);
       if (!can(m, 'get_me')) return store.updateAccount(account.key, { checked_at: now() });
       try {
@@ -183,10 +185,10 @@ export function createAccounts({ store, keys, fetcher, messengers, maxPerOwner =
       }
     },
 
-    remove(account) { return store.deleteAccount(account.key); },
+    remove(account) { if (account.mode === 'web') companion.revoke(account); return store.deleteAccount(account.key); },
 
     // The core's bot operations bound to this account's own token and locks.
-    ops(account) { return opsWith(messenger(account.messenger), settingsOf(account)); },
+    ops(account) { return account.mode === 'web' ? companion.ops(account) : opsWith(messenger(account.messenger), settingsOf(account)); },
 
     messenger
   };

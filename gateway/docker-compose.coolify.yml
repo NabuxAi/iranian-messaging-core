@@ -21,6 +21,7 @@ services:
       APP_SECRET_KEY: ${APP_SECRET_KEY}
       # Shared with Social MCP as SOCIAL_IRAN_TOKEN. Unset = internal API answers 404.
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
+      IRAN_WEB_COMPANION_ENABLED: ${IRAN_WEB_COMPANION_ENABLED:-0}
       PROVIDER_ID: ${PROVIDER_ID:-iran}
       CONNECT_RETURN_ORIGINS: ${CONNECT_RETURN_ORIGINS:-https://social.nabuxai.com}
       # Sign in with Nabux (client iran-mcp on NabuAuth).
